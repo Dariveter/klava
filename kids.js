@@ -1,0 +1,785 @@
+(() => {
+  "use strict";
+
+  const HOST_ID = "keyboard-kids-app-host";
+  if (document.getElementById(HOST_ID)) return;
+
+  const host = document.createElement("div");
+  host.id = HOST_ID;
+  const root = host.attachShadow({ mode: "open" });
+
+  root.innerHTML = `
+    <style>
+:root {
+      --bg: #17171a;
+      --fg: #ffffff;
+      --muted: rgba(255,255,255,.68);
+      --panel: rgba(255,255,255,.10);
+      --panel-border: rgba(255,255,255,.15);
+      --shadow: 0 24px 80px rgba(0,0,0,.28);
+    }
+
+    * { box-sizing: border-box; }
+
+    :host {
+      position: fixed;
+      inset: 0;
+      z-index: 2147483647;
+      display: block;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: Inter, ui-rounded, "SF Pro Rounded", "Arial Rounded MT Bold",
+        system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overscroll-behavior: none;
+    }
+
+    :host {
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    button { font: inherit; }
+
+    #app {
+      position: fixed;
+      inset: 0;
+      isolation: isolate;
+      background:
+        radial-gradient(circle at 25% 20%, rgba(255,255,255,.035), transparent 28%),
+        radial-gradient(circle at 70% 80%, rgba(255,255,255,.025), transparent 32%),
+        var(--bg);
+      overflow: hidden;
+    }
+
+    #app::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1000;
+      opacity: .10;
+      background-image:
+        linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(circle at center, #000 0 45%, transparent 90%);
+    }
+
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: clamp(20px, 4vw, 52px);
+      z-index: 2000;
+      transition: opacity .22s ease, visibility .22s ease;
+    }
+
+    .screen.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .card {
+      width: min(720px, 100%);
+      padding: clamp(28px, 5vw, 56px);
+      border: 1px solid var(--panel-border);
+      background: rgba(18,18,22,.72);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-radius: 36px;
+      box-shadow: var(--shadow);
+      text-align: center;
+    }
+
+    .eyebrow {
+      margin-bottom: 14px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(42px, 8vw, 88px);
+      line-height: .95;
+      letter-spacing: -.065em;
+    }
+
+    .lead {
+      max-width: 560px;
+      margin: 24px auto 0;
+      color: var(--muted);
+      font-size: clamp(17px, 2.2vw, 22px);
+      line-height: 1.45;
+    }
+
+    .start-button {
+      margin-top: 34px;
+      min-width: min(330px, 100%);
+      padding: 20px 28px;
+      border: 0;
+      border-radius: 999px;
+      background: #fff;
+      color: #111;
+      cursor: pointer;
+      font-weight: 900;
+      font-size: 20px;
+      box-shadow: 0 12px 35px rgba(255,255,255,.13);
+      transform: translateZ(0);
+      transition: transform .14s ease;
+    }
+
+    .start-button:hover { transform: scale(1.025); }
+    .start-button:active { transform: scale(.985); }
+
+    .hint {
+      margin-top: 22px;
+      color: rgba(255,255,255,.45);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    kbd {
+      display: inline-block;
+      padding: 3px 7px;
+      margin: 0 2px;
+      border: 1px solid rgba(255,255,255,.18);
+      border-bottom-width: 2px;
+      border-radius: 7px;
+      background: rgba(255,255,255,.08);
+      color: rgba(255,255,255,.82);
+      font: inherit;
+      font-weight: 800;
+    }
+
+    #stage {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      z-index: 10;
+      cursor: default;
+    }
+
+    :host(.playing) #stage { cursor: none; }
+
+    #softGlow {
+      position: absolute;
+      width: 64vmin;
+      height: 64vmin;
+      left: 50%;
+      top: 50%;
+      translate: -50% -50%;
+      border-radius: 50%;
+      filter: blur(90px);
+      opacity: .055;
+      pointer-events: none;
+      background: rgba(255,255,255,.28);
+      z-index: -1;
+    }
+
+    .effect {
+      position: absolute;
+      pointer-events: none;
+      will-change: transform, opacity;
+      z-index: 20;
+      opacity: .92;
+    }
+
+    .big-letter {
+      left: var(--x);
+      top: var(--y);
+      translate: -50% -50%;
+      font-size: clamp(110px, 30vmin, 420px);
+      line-height: .8;
+      font-weight: 1000;
+      letter-spacing: -.09em;
+      text-shadow: 0 12px 45px rgba(0,0,0,.18);
+      animation: letter-pop var(--life, 6500ms) cubic-bezier(.16,.84,.25,1) forwards;
+    }
+
+    @keyframes letter-pop {
+      0%   { transform: scale(.16) rotate(var(--r)); opacity: 0; }
+      5%   { opacity: 1; }
+      18%  { transform: scale(1.03) rotate(calc(var(--r) * -.15)); opacity: 1; }
+      72%  { transform: scale(1.06) rotate(0deg); opacity: 1; }
+      100% { transform: scale(1.10) rotate(0deg); opacity: 0; }
+    }
+
+    .emoji {
+      left: var(--x);
+      top: var(--y);
+      translate: -50% -50%;
+      font-size: clamp(90px, 22vmin, 300px);
+      filter: drop-shadow(0 18px 22px rgba(0,0,0,.18));
+      animation: emoji-bounce var(--life, 6800ms) cubic-bezier(.12,.88,.27,1) forwards;
+    }
+
+    @keyframes emoji-bounce {
+      0%   { transform: scale(.08) rotate(-10deg); opacity: 0; }
+      6%   { transform: scale(1.02) rotate(3deg); opacity: 1; }
+      22%  { transform: scale(.98) rotate(-2deg); opacity: 1; }
+      72%  { transform: scale(1) rotate(0deg); opacity: 1; }
+      100% { transform: scale(.96) translateY(-3vh); opacity: 0; }
+    }
+
+    .shape {
+      left: var(--x);
+      top: var(--y);
+      width: var(--size);
+      height: var(--size);
+      translate: -50% -50%;
+      background: currentColor;
+      border-radius: var(--radius);
+      box-shadow: 0 0 0 18px rgba(255,255,255,.06);
+      animation: shape-boom var(--life, 6200ms) cubic-bezier(.11,.86,.22,1) forwards;
+    }
+
+    @keyframes shape-boom {
+      0%   { transform: scale(.08) rotate(0); opacity: 0; }
+      7%   { transform: scale(1.0) rotate(18deg); opacity: .95; }
+      72%  { transform: scale(1.05) rotate(26deg); opacity: .92; }
+      100% { transform: scale(1.12) rotate(32deg); opacity: 0; }
+    }
+
+    .ring {
+      left: var(--x);
+      top: var(--y);
+      width: 12vmin;
+      height: 12vmin;
+      translate: -50% -50%;
+      border: clamp(10px, 2vmin, 28px) solid currentColor;
+      border-radius: 50%;
+      animation: ring-expand var(--life, 5600ms) ease-out forwards;
+    }
+
+    @keyframes ring-expand {
+      0%   { transform: scale(.10); opacity: 0; }
+      8%   { transform: scale(1.0); opacity: .9; }
+      72%  { transform: scale(2.2); opacity: .55; }
+      100% { transform: scale(2.8); opacity: 0; }
+    }
+
+    .particle {
+      left: var(--x);
+      top: var(--y);
+      width: var(--w);
+      height: var(--h);
+      border-radius: var(--radius);
+      background: currentColor;
+      animation: particle-fly var(--life, 5600ms) cubic-bezier(.12,.7,.22,1) forwards;
+    }
+
+    @keyframes particle-fly {
+      0% {
+        transform: translate(-50%, -50%) scale(.3) rotate(0);
+        opacity: 0;
+      }
+      7% {
+        opacity: .95;
+      }
+      72% {
+        opacity: .85;
+      }
+      100% {
+        transform:
+          translate(
+            calc(-50% + var(--dx)),
+            calc(-50% + var(--dy))
+          )
+          scale(var(--scale))
+          rotate(var(--spin));
+        opacity: 0;
+      }
+    }
+
+    .star {
+      left: var(--x);
+      top: var(--y);
+      translate: -50% -50%;
+      font-size: var(--size);
+      color: currentColor;
+      animation: star-whoosh var(--life, 5900ms) cubic-bezier(.12,.75,.15,1) forwards;
+    }
+
+    @keyframes star-whoosh {
+      0%   { transform: scale(.2) rotate(0); opacity: 0; }
+      7%   { opacity: 1; }
+      72%  { opacity: .9; }
+      100% {
+        transform: translate(var(--dx), var(--dy)) scale(1.12) rotate(var(--spin));
+        opacity: 0;
+      }
+    }
+
+    #cornerStatus {
+      position: absolute;
+      right: 18px;
+      bottom: 16px;
+      z-index: 3000;
+      padding: 9px 12px;
+      border-radius: 999px;
+      background: rgba(0,0,0,.22);
+      color: rgba(255,255,255,.40);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .2s ease;
+    }
+
+    :host(.playing) #cornerStatus { opacity: 1; }
+
+    #resumeOverlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      z-index: 5000;
+      background: rgba(0,0,0,.55);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+
+    #resumeOverlay.hidden { display: none; }
+
+    .resume-box {
+      padding: 26px 30px;
+      border-radius: 26px;
+      background: rgba(20,20,24,.88);
+      border: 1px solid rgba(255,255,255,.14);
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+
+    .resume-box strong {
+      display: block;
+      font-size: 24px;
+      margin-bottom: 14px;
+    }
+
+    .resume-box button {
+      border: 0;
+      border-radius: 999px;
+      padding: 14px 22px;
+      background: #fff;
+      color: #111;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .effect { animation-duration: 220ms !important; }
+    }
+    </style>
+
+<main id="app" aria-label="Клавиатурное шоу">
+    <div id="stage" aria-hidden="true">
+      <div id="softGlow"></div>
+    </div>
+
+    <section id="startScreen" class="screen">
+      <div class="card">
+        <div class="eyebrow">Клавиатурное шоу</div>
+        <h1>Жми<br>что угодно</h1>
+        <p class="lead">
+          Каждая клавиша превращается в букву, цвет, зверя, фигуру или маленький салют.
+        </p>
+
+        <button id="startBtn" class="start-button" type="button">
+          Начать игру
+        </button>
+
+        <div class="hint">
+          Родительский выход: <kbd>Shift</kbd> + <kbd>R</kbd><br>
+          Лучше запускать в Chrome/Chromium и в полноэкранном режиме.
+        </div>
+      </div>
+    </section>
+
+    <div id="resumeOverlay" class="hidden">
+      <div class="resume-box">
+        <strong>Вернуться в игру</strong>
+        <button id="resumeBtn" type="button">Продолжить</button>
+      </div>
+    </div>
+
+    <div id="cornerStatus">SHIFT + R — ВЫХОД</div>
+  </main>
+  `;
+
+  document.body.appendChild(host);
+
+"use strict";
+
+  const app = root.getElementById("app");
+  const stage = root.getElementById("stage");
+  const glow = root.getElementById("softGlow");
+  const startScreen = root.getElementById("startScreen");
+  const startBtn = root.getElementById("startBtn");
+  const resumeOverlay = root.getElementById("resumeOverlay");
+  const resumeBtn = root.getElementById("resumeBtn");
+
+  let playing = false;
+  let audioCtx = null;
+  let lastEffectAt = 0;
+
+  const palettes = [
+    ["#FF4D6D", "#FFD166", "#06D6A0", "#118AB2", "#8338EC"],
+    ["#FF6B00", "#FFE500", "#00D084", "#0066FF", "#FF3CAC"],
+    ["#F72585", "#B5179E", "#7209B7", "#4895EF", "#4CC9F0"],
+    ["#FF595E", "#FFCA3A", "#8AC926", "#1982C4", "#6A4C93"],
+    ["#FF8FAB", "#FFC2D1", "#FB6F92", "#A2D2FF", "#BDE0FE"],
+    ["#FFFFFF", "#FFD60A", "#FF006E", "#3A86FF", "#8338EC"]
+  ];
+
+  const emojis = [
+    "🐥","🐸","🦊","🐻","🐼","🐯","🦁","🐵","🐙","🦄",
+    "🐳","🐠","🦖","🦕","🐝","🦋","🌈","☀️","🌙","⭐",
+    "🍓","🍉","🍋","🍒","🍭","🚗","🚀","🚜","⚽","🎈",
+    "🥁","🎹","🎸","🪇","💫","✨","🎉","❤️","💛","💚"
+  ];
+
+  const specialKeys = {
+    " ": "★",
+    "Enter": "↵",
+    "Backspace": "←",
+    "ArrowUp": "↑",
+    "ArrowDown": "↓",
+    "ArrowLeft": "←",
+    "ArrowRight": "→",
+    "Tab": "✦",
+    "Escape": "★",
+    "Shift": "⬆",
+    "Control": "◆",
+    "Alt": "●",
+    "Meta": "⌘",
+    "CapsLock": "A"
+  };
+
+  const random = (min, max) => Math.random() * (max - min) + min;
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+  function randomPoint(edgeSafe = false) {
+    const margin = edgeSafe ? 16 : 6;
+    return {
+      x: random(margin, 100 - margin),
+      y: random(margin, 100 - margin)
+    };
+  }
+
+  function color() {
+    return pick(pick(palettes));
+  }
+
+  function setBackgroundBurst() {
+    // Спокойный режим: фон не мигает и не меняет цвет.
+    // Только едва заметное мягкое свечение.
+    glow.style.background = "rgba(255,255,255,.28)";
+  }
+
+  function addAndRemove(el, ms = null) {
+    const life = ms ?? random(5000, 8000);
+    el.style.setProperty("--life", life + "ms");
+    stage.appendChild(el);
+    window.setTimeout(() => el.remove(), life + 150);
+  }
+
+  function showLetter(rawKey) {
+    const p = randomPoint(true);
+    const el = document.createElement("div");
+    el.className = "effect big-letter";
+
+    let text = rawKey;
+    if (!text || text.length > 2) text = specialKeys[rawKey] || pick(["★","●","▲","♥","✦"]);
+    if (text.length === 1) text = text.toLocaleUpperCase();
+
+    el.textContent = text;
+    el.style.setProperty("--x", p.x + "%");
+    el.style.setProperty("--y", p.y + "%");
+    el.style.setProperty("--r", random(-24, 24) + "deg");
+    el.style.color = color();
+    addAndRemove(el);
+  }
+
+  function showEmoji() {
+    const p = randomPoint(true);
+    const el = document.createElement("div");
+    el.className = "effect emoji";
+    el.textContent = pick(emojis);
+    el.style.setProperty("--x", p.x + "%");
+    el.style.setProperty("--y", p.y + "%");
+    addAndRemove(el);
+  }
+
+  function showShape() {
+    const p = randomPoint();
+    const el = document.createElement("div");
+    el.className = "effect shape";
+    el.style.setProperty("--x", p.x + "%");
+    el.style.setProperty("--y", p.y + "%");
+    el.style.setProperty("--size", random(10, 30) + "vmin");
+    el.style.setProperty("--radius", pick(["50%","22%","4%","50% 10% 50% 10%"]));
+    el.style.color = color();
+    addAndRemove(el);
+  }
+
+  function showRing() {
+    const p = randomPoint();
+    const el = document.createElement("div");
+    el.className = "effect ring";
+    el.style.setProperty("--x", p.x + "%");
+    el.style.setProperty("--y", p.y + "%");
+    el.style.color = color();
+    addAndRemove(el);
+  }
+
+  function confetti(count = 26) {
+    const origin = randomPoint();
+    for (let i = 0; i < count; i++) {
+      const el = document.createElement("div");
+      el.className = "effect particle";
+
+      const angle = random(0, Math.PI * 2);
+      const distance = random(8, 24);
+      const dx = Math.cos(angle) * distance;
+      const dy = Math.sin(angle) * distance;
+
+      el.style.setProperty("--x", origin.x + "%");
+      el.style.setProperty("--y", origin.y + "%");
+      el.style.setProperty("--dx", dx + "vw");
+      el.style.setProperty("--dy", dy + "vh");
+      el.style.setProperty("--w", random(8, 24) + "px");
+      el.style.setProperty("--h", random(8, 34) + "px");
+      el.style.setProperty("--radius", pick(["3px","50%","999px"]));
+      el.style.setProperty("--dur", random(650, 1150) + "ms");
+      el.style.setProperty("--spin", random(-720, 720) + "deg");
+      el.style.setProperty("--scale", random(.5, 1.7));
+      el.style.color = color();
+
+      addAndRemove(el);
+    }
+  }
+
+  function stars(count = 10) {
+    const origin = randomPoint();
+    for (let i = 0; i < count; i++) {
+      const el = document.createElement("div");
+      el.className = "effect star";
+      el.textContent = pick(["★","✦","✧","●","♥"]);
+      el.style.setProperty("--x", origin.x + "%");
+      el.style.setProperty("--y", origin.y + "%");
+      el.style.setProperty("--dx", random(-18, 18) + "vw");
+      el.style.setProperty("--dy", random(-16, 16) + "vh");
+      el.style.setProperty("--size", random(26, 85) + "px");
+      el.style.setProperty("--dur", random(600, 1000) + "ms");
+      el.style.setProperty("--spin", random(-360, 360) + "deg");
+      el.style.color = color();
+      addAndRemove(el);
+    }
+  }
+
+  function playTone() {
+    try {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      const scale = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25];
+      osc.frequency.value = pick(scale) * pick([0.5, 1, 1, 2]);
+      osc.type = pick(["sine", "triangle"]);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.08, now + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.17);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.19);
+    } catch (_) {}
+  }
+
+  function triggerEffect(key) {
+    const now = performance.now();
+
+    // Ограничение на сверхбыстрый автоповтор, чтобы старый ноутбук не захлебнулся.
+    if (now - lastEffectAt < 22) return;
+    lastEffectAt = now;
+
+    setBackgroundBurst();
+    playTone();
+
+    const roll = Math.random();
+    if (roll < .30) showLetter(key);
+    else if (roll < .48) showEmoji();
+    else if (roll < .64) showShape();
+    else if (roll < .76) showRing();
+    else if (roll < .90) confetti();
+    else stars();
+
+    // Иногда делаем двойной эффект.
+    if (Math.random() < .08) {
+      window.setTimeout(() => {
+        Math.random() < .5 ? showEmoji() : stars(6);
+      }, 70);
+    }
+  }
+
+  async function requestImmersiveMode() {
+    // 1) Fullscreen. Новая опция keyboardLock поддерживается не везде,
+    // поэтому есть fallback на обычный requestFullscreen().
+    if (!document.fullscreenElement) {
+      try {
+        await host.requestFullscreen({
+          navigationUI: "hide",
+          keyboardLock: "browser"
+        });
+      } catch (_) {
+        try {
+          await host.requestFullscreen({ navigationUI: "hide" });
+        } catch (_) {}
+      }
+    }
+
+    // 2) Дополнительная попытка перехвата всех клавиш.
+    // Работает только в поддерживающих браузерах и безопасном HTTPS-контексте.
+    if (navigator.keyboard && navigator.keyboard.lock) {
+      try {
+        await navigator.keyboard.lock();
+      } catch (_) {}
+    }
+  }
+
+  function unlockKeyboard() {
+    if (navigator.keyboard && navigator.keyboard.unlock) {
+      try { navigator.keyboard.unlock(); } catch (_) {}
+    }
+  }
+
+  async function startPlaying() {
+    playing = true;
+    host.classList.add("playing");
+    startScreen.classList.add("hidden");
+    resumeOverlay.classList.add("hidden");
+
+    // Инициализируем звук именно по клику пользователя.
+    try {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === "suspended") await audioCtx.resume();
+    } catch (_) {}
+
+    await requestImmersiveMode();
+
+    // Красивое приветствие.
+    setBackgroundBurst();
+    stars(16);
+    window.setTimeout(() => confetti(22), 120);
+  }
+
+  async function stopPlaying() {
+    playing = false;
+    host.classList.remove("playing");
+    unlockKeyboard();
+
+    if (document.fullscreenElement) {
+      try { await document.exitFullscreen(); } catch (_) {}
+    }
+
+    // Не пытаемся window.close(): браузеры обычно запрещают странице
+    // закрывать вкладку, если она не была открыта через JavaScript.
+    startScreen.classList.remove("hidden");
+    resumeOverlay.classList.add("hidden");
+  }
+
+  // Перехватываем максимально рано.
+  window.addEventListener("keydown", (event) => {
+    if (!playing) return;
+
+    // Родительский выход.
+    if (event.shiftKey && event.code === "KeyR") {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      stopPlaying();
+      return;
+    }
+
+    // Если событие дошло до страницы — не даём браузеру использовать его
+    // для прокрутки, фокуса, быстрых действий и т.п.
+    event.preventDefault();
+    event.stopPropagation();
+
+    triggerEffect(event.key);
+  }, { capture: true });
+
+  window.addEventListener("keyup", (event) => {
+    if (!playing) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, { capture: true });
+
+  // Мышь/тач тоже могут запускать шоу.
+  stage.addEventListener("pointerdown", (event) => {
+    if (!playing) return;
+    event.preventDefault();
+    triggerEffect(pick(["★","●","♥","✦"]));
+  });
+
+  // Отключаем контекстное меню и перетаскивание в игровом режиме.
+  window.addEventListener("contextmenu", e => {
+    if (playing) e.preventDefault();
+  }, { capture: true });
+
+  window.addEventListener("dragstart", e => {
+    if (playing) e.preventDefault();
+  }, { capture: true });
+
+  // Дополнительная защита от случайного закрытия/перезагрузки.
+  window.addEventListener("beforeunload", e => {
+    if (!playing) return;
+    e.preventDefault();
+    e.returnValue = "";
+  });
+
+  // Если браузер сам вышел из fullscreen, страницу нельзя автоматически
+  // вернуть туда без нового пользовательского жеста. Показываем большую кнопку.
+  document.addEventListener("fullscreenchange", () => {
+    if (playing && !document.fullscreenElement) {
+      unlockKeyboard();
+      resumeOverlay.classList.remove("hidden");
+    } else {
+      resumeOverlay.classList.add("hidden");
+    }
+  });
+
+  // Когда пользователь вернулся во вкладку, тоже предлагаем восстановить режим.
+  document.addEventListener("visibilitychange", () => {
+    if (playing && document.visibilityState === "visible" && !document.fullscreenElement) {
+      resumeOverlay.classList.remove("hidden");
+    }
+  });
+
+  startBtn.addEventListener("click", startPlaying);
+  resumeBtn.addEventListener("click", requestImmersiveMode);
+
+  // На случай встраивания — просим фокус при клике.
+  window.addEventListener("pointerdown", () => {
+    try { window.focus(); } catch (_) {}
+  }, { capture: true });
+})();
